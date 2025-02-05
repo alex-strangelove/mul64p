@@ -22,8 +22,8 @@
 
 module mul64p_tb;
     // Parameters
-    localparam CLK_PERIOD = 10;
-    localparam PIPELINE_DEPTH = 5;
+    localparam CLK_PERIOD = 1.98; // 505 MHZ
+    localparam PIPELINE_DEPTH = 9;
 
     // Signals
     logic clk;
@@ -83,7 +83,7 @@ module mul64p_tb;
                 $display("Expected: %h", expected_result);
                 $display("Got: %h", Result);
                 error_count++;
-            end
+            end 
         end
 
         // Report results
