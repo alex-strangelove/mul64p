@@ -26,18 +26,26 @@ module mul32p
     output reg [63:0]  Result
 );
     // Input segments
-    reg [15:0] AH_S1, AL_S1, BH_S1, BL_S1;
+    reg [15:0] AH_S1, AL_S1, 
+               BH_S1, BL_S1;
     
     // Partial products
-    reg [31:0] PP_HH_S2, PP_HL_S2, PP_LH_S2, PP_LL_S2;
+    reg [31:0] PP_HH_S2, PP_HL_S2, 
+               PP_LH_S2, PP_LL_S2;
 
-    // Partial result
+    // Partial products copy
+    reg [31:0] PP_HH_S2_pipe, PP_HL_S2_pipe, 
+               PP_LH_S2_pipe, PP_LL_S2_pipe;
+
+    // Partial results
     reg [63:0] PR_S1, PR_S2;
+    reg [63:0] PR_S1_pipe, PR_S2_pipe;
     
-    // 1st stage: Split Inputs into Segments
-    always @(posedge clk) begin: FirstStage
+    // Split Inputs into Segments
+    always @(posedge clk) begin
         if (rst) begin
-            {AH_S1, AL_S1, BH_S1, BL_S1} = 64'b0;
+            {AH_S1, AL_S1, 
+             BH_S1, BL_S1} = 64'b0;
         end else begin
             AH_S1 <= A[31:16];
             AL_S1 <= A[15:0];
@@ -46,12 +54,12 @@ module mul32p
         end
     end
     
-    // 2nd stage: Compute Partial Products
-    always @(posedge clk) begin: SecondStage
+    // Compute Partial Products
+    always @(posedge clk) begin
         if (rst) begin
-            {PP_HH_S2, PP_HL_S2, PP_LH_S2, PP_LL_S2} = 128'b0;
+            {PP_HH_S2, PP_HL_S2, 
+             PP_LH_S2, PP_LL_S2} <= 128'b0;
         end else begin
-            // NOTE: Multiplication inferred directly by the synthesis tool
             PP_HH_S2 <= AH_S1 * BH_S1;
             PP_HL_S2 <= AH_S1 * BL_S1;
             PP_LH_S2 <= AL_S1 * BH_S1;
@@ -59,49 +67,73 @@ module mul32p
         end
     end
     
-    // 3rd stage: Combine Partial Products. Part 1
-    always @(posedge clk) begin: ThirdStage
+    // Copy PP into reg
+    always @(posedge clk) begin
         if (rst) begin
-            PR_S1 <= 64'b0;
+            {PP_HH_S2_pipe, PP_HL_S2_pipe, 
+             PP_LH_S2_pipe, PP_LL_S2_pipe} <= 128'b0;
         end else begin
-            PR_S1 <= (PP_LH_S2 << 16) + // 48 bits
-                      PP_LL_S2;         // 32 bits
+            PP_HH_S2_pipe <= PP_HH_S2;
+            PP_HL_S2_pipe <= PP_HL_S2;
+            PP_LH_S2_pipe <= PP_LH_S2;
+            PP_LL_S2_pipe <= PP_LL_S2;
         end
     end
     
-    // 4th stage: Combine Partial Products. Part 2
-    always @(posedge clk) begin: FourthStage
+    // Combine Partial Products
+    always @(posedge clk) begin
         if (rst) begin
-            PR_S2 <= 64'b0;
+            {PR_S1, PR_S2} <= 128'b0;
         end else begin
-            PR_S2 <= (PP_HH_S2 << 32)  + // 64 bits
-                     (PP_HL_S2 << 16);   // 48 bits
-        end 
+            PR_S1 <= (PP_LH_S2_pipe << 16) + 
+                      PP_LL_S2_pipe;
+            PR_S2 <= (PP_HH_S2_pipe << 32) + 
+                     (PP_HL_S2_pipe << 16);
+        end
     end
     
-    // 5th stage: Combine Final Partial Products. Part 3
-    always @(posedge clk) begin: FifthStage
+    // Copy partial results into reg
+    always @(posedge clk) begin
+        if (rst) begin
+            {PR_S1_pipe, PR_S2_pipe} <= 128'b0;
+        end else begin
+            PR_S1_pipe <= PR_S1;
+            PR_S2_pipe <= PR_S2;
+        end
+    end
+    
+    // Final addition
+    always @(posedge clk) begin
         if (rst) begin
             Result <= 64'b0;
         end else begin
-            Result <= PR_S2 + PR_S1;
+            Result <= PR_S2_pipe + PR_S1_pipe;
         end
     end
 endmodule
 
-module rtl_mul64p (
+module rtl_mul64p 
+(
     input                clk, rst,
     input       [63:0]   A, B,
     output reg  [127:0]  Result
 );
     // Input segments
-    reg [31:0] AH_S1, AL_S1, BH_S1, BL_S1;
+    reg [31:0]  AH_S1, AL_S1, 
+                BH_S1, BL_S1;
+
+    // Store PP after shift
+    reg [127:0] shift_LH, shift_HH, shift_HL;
     
     // Partial products
-    wire [63:0] PP_HH_S2, PP_HL_S2, PP_LH_S2, PP_LL_S2;
-    
-    // Partial result
+    wire [63:0] PP_HH_S2, PP_HL_S2, 
+                PP_LH_S2, PP_LL_S2;
+    reg  [63:0] PP_HH_S2_pipe, PP_HL_S2_pipe, 
+                PP_LH_S2_pipe, PP_LL_S2_pipe;
+
+    // Partial results with DSP attribute
     reg [127:0] PR_S1, PR_S2;
+    reg [127:0] PR_S1_pipe, PR_S2_pipe;
     
     mul32p mult_hh(
         .clk(clk),  
@@ -136,9 +168,10 @@ module rtl_mul64p (
     );
     
     // Split Inputs into Segments
-    always @(posedge clk) begin: FirstStage
+    always @(posedge clk) begin
         if (rst) begin
-            {AH_S1, AL_S1, BH_S1, BL_S1} = 128'b0;
+            {AH_S1, AL_S1, 
+             BH_S1, BL_S1} = 128'b0;
         end else begin
             AH_S1 <= A[63:32];
             AL_S1 <= A[31:0];
@@ -147,32 +180,49 @@ module rtl_mul64p (
         end
     end
     
-    // 2nd stage: Combine Partial Products. Part 1
-    always @(posedge clk) begin: SecondStage
+    // Copy PP into reg
+    always @(posedge clk) begin
         if (rst) begin
-            PR_S1 <= 128'b0;
+            {PP_HH_S2_pipe, PP_HL_S2_pipe, 
+             PP_LH_S2_pipe, PP_LL_S2_pipe} <= 256'b0;
         end else begin
-            PR_S1 <= (PP_LH_S2 << 32) + // 96 bits
-                      PP_LL_S2;         // 64 bits
+            PP_HH_S2_pipe <= PP_HH_S2;
+            PP_HL_S2_pipe <= PP_HL_S2;
+            PP_LH_S2_pipe <= PP_LH_S2;
+            PP_LL_S2_pipe <= PP_LL_S2;
+        end
+    end
+
+    // First level additions
+    always @(posedge clk) begin
+        if (rst) begin
+            PR_S1 <= 0;
+            PR_S2 <= 0;
+        end else begin
+            PR_S1 <= (PP_LH_S2_pipe << 32) + // 96 bits
+                      PP_LL_S2_pipe;         // 64 bits
+            PR_S2 <= (PP_HH_S2_pipe << 64)  + // 128 bits
+                     (PP_HL_S2_pipe << 32);   // 96 bits
+        end
+    end
+
+    // Pipeline registers
+    always @(posedge clk) begin
+        if (rst) begin
+            PR_S1_pipe <= 0;
+            PR_S2_pipe <= 0;
+        end else begin
+            PR_S1_pipe <= PR_S1;
+            PR_S2_pipe <= PR_S2;
         end
     end
     
-    // 3rd stage: Combine Partial Products. Part 2
-    always @(posedge clk) begin: ThirdStage
-        if (rst) begin
-            PR_S2 <= 128'b0;
-        end else begin
-            PR_S2 <= (PP_HH_S2 << 64)  + // 128 bits
-                     (PP_HL_S2 << 32);   // 96 bits
-        end 
-    end
-    
-    // 4th stage: Combine Final Partial Products. Part 3
-    always @(posedge clk) begin: FourthStage
+    // Final addition
+    always @(posedge clk) begin
         if (rst) begin
             Result <= 128'b0;
         end else begin
-            Result <= PR_S2 + PR_S1;
+            Result <= PR_S2_pipe + PR_S1_pipe;
         end
     end
 endmodule
