@@ -22,17 +22,17 @@
 
 module mul64p_tb;
     // Parameters
-    localparam CLK_PERIOD = 1.98; // 505 MHZ
-    localparam PIPELINE_DEPTH = 9;
+    localparam    CLK_PERIOD     = 1.971; // 507 MHZ
+    localparam    PIPELINE_DEPTH = 12;
 
     // Signals
-    logic clk;
-    logic rst;
-    logic [63:0] A, B;
-    logic [127:0] Result;
-    logic [127:0] expected_result;
-    int error_count = 0;
-    int test_count = 0;
+    logic         clk, rst;
+    logic [63:0]  A, B;
+    logic [127:0] Result, 
+                  ExpectedResult;
+                  
+    int           error_count = 0;
+    int           test_count = 0;
 
     // DUT Instance
     rtl_mul64p dut (
@@ -76,12 +76,14 @@ module mul64p_tb;
             
             // Calculate expected after pipeline delay
             #(PIPELINE_DEPTH * CLK_PERIOD);
-            expected_result = A * B;
+            ExpectedResult = A * B;
             
-            if(Result !== expected_result) begin
+            if(Result !== ExpectedResult) begin
+                $display("============================================");
                 $display("Error: A=%h B=%h", A, B);
-                $display("Expected: %h", expected_result);
+                $display("Expected: %h", ExpectedResult);
                 $display("Got: %h", Result);
+                $display("============================================");
                 error_count++;
             end 
         end
