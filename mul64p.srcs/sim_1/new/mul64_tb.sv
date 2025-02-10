@@ -23,7 +23,7 @@
 module mul64p_tb;
     // Parameters
     localparam    CLK_PERIOD     = 1.971; // 507 MHZ
-    localparam    PIPELINE_DEPTH = 12;
+    localparam    PIPELINE_DEPTH = 11;    
 
     // Signals
     logic         clk, rst;
