@@ -131,7 +131,7 @@ module rtl_mul64p
     reg  [63:0] PP_HH_S2_pipe, PP_HL_S2_pipe, 
                 PP_LH_S2_pipe, PP_LL_S2_pipe;
 
-    // Partial results with DSP attribute
+    // Partial results
     reg [127:0] PR_S1, PR_S2;
     reg [127:0] PR_S1_pipe, PR_S2_pipe;
     

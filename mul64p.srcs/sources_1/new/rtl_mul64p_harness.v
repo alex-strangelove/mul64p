@@ -123,7 +123,6 @@ module Register_Pipeline
 // synchronous load inputs, giving us a 2:1 mux for free. If not, then we
 // should use LUTs instead, or other multiplexers built into the logic blocks.
 
-    (* multstyle = "logic" *) // Quartus
     (* use_dsp   = "no" *)    // Vivado
 
 // We strip out first iteration of module instantiations to avoid having to
@@ -171,7 +170,7 @@ module Register_Pipeline
 
         for(i=1; i < PIPE_DEPTH; i=i+1) begin : pipe_stages
 
-            (* multstyle = "logic" *) // Quartus
+            // (* multstyle = "logic" *) // Quartus
             (* use_dsp   = "no" *)    // Vivado
 
             Multiplexer_Binary_Behavioural
